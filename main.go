@@ -101,7 +101,10 @@ func main() {
 		}
 	})
 
-	app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 }
 
 func setupLogging() {
@@ -145,7 +148,7 @@ func (hook *consoleHook) Fire(entry *logrus.Entry) error {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(hook.writer, line)
+			fmt.Fprint(hook.writer, line)
 		}
 	}
 	return nil
@@ -315,18 +318,28 @@ func listInstalledPackages(host string) error {
 		distroStr := strings.TrimSpace(string(distro))
 		if distroStr == "ubuntu" || distroStr == "debian" {
 			pkgList, err = runCommand(client, `dpkg-query -W -f='${binary:Package}\t${Version}\t${source:Package}\n'`)
+			if err != nil {
+				fmt.Printf("Failed\n")
+				logrus.Errorf("Failed to list packages on host %s: %v", host, err)
+				return err
+			}
 		} else if distroStr == "centos" || distroStr == "fedora" || distroStr == "rhel" {
 			pkgList, err = runCommand(client, `rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\t%{VENDOR}\n'`)
+			if err != nil {
+				fmt.Printf("Failed\n")
+				logrus.Errorf("Failed to list packages on host %s: %v", host, err)
+				return err
+			}
 		} else {
-			err = fmt.Errorf("unsupported Linux distribution: %s", distroStr)
+			err := fmt.Errorf("unsupported Linux distribution: %s", distroStr)
+			fmt.Printf("Failed\n")
+			logrus.Errorf("Unsupported Linux distribution on host %s: %v", host, err)
+			return err
 		}
 	} else {
-		err = fmt.Errorf("unsupported OS type: %s", osType)
-	}
-
-	if err != nil {
+		err := fmt.Errorf("unsupported OS type: %s", osType)
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to list packages on host %s: %v", host, err)
+		logrus.Errorf("Unsupported OS type on host %s: %v", host, err)
 		return err
 	}
 
@@ -398,7 +411,10 @@ func listPackagesAllHosts(update bool) error {
 func savePackages(host, hostname string, packages []packageInfo) {
 	fileName := fmt.Sprintf("%s__%s.json", hostname, host)
 	fileData, _ := json.MarshalIndent(packages, "", "  ")
-	os.WriteFile(fileName, fileData, 0644)
+	err := os.WriteFile(fileName, fileData, 0644)
+	if err != nil {
+		logrus.Errorf("Failed to save package list for host %s: %v", host, err)
+	}
 }
 
 func connectSSHClientOnly(host string) (*ssh.Client, error) {
@@ -460,7 +476,7 @@ func searchPackages(conf config, packageName string) {
 			continue
 		}
 		for _, pkg := range packages {
-			if pkg.Name == packageName {
+			if strings.Contains(pkg.Name, packageName) {
 				hostMatches[host.Hostname] = append(hostMatches[host.Hostname], pkg)
 				packageCounts[pkg.Version]++
 			}
@@ -471,7 +487,7 @@ func searchPackages(conf config, packageName string) {
 	for host, pkgs := range hostMatches {
 		fmt.Printf("Host: %s\n", host)
 		for _, pkg := range pkgs {
-			fmt.Printf("  Version: %s, Repository: %s\n", pkg.Version, pkg.Repository)
+			fmt.Printf("  Name: %s, Version: %s, Repository: %s\n", pkg.Name, pkg.Version, pkg.Repository)
 			totalCount++
 		}
 	}
