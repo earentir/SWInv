@@ -15,12 +15,12 @@ import (
 )
 
 // UpdateHostInfo updates the information of a single host.
-func UpdateHostInfo(host string) error {
-	fmt.Printf("Inventorying host %s...", host)
-	client, err := ssh.ConnectSSHClientOnly(host)
+func UpdateHostInfo(ip string) error {
+	fmt.Printf("Inventorying host %s...", ip)
+	client, err := ssh.ConnectSSHClientOnly(ip)
 	if err != nil {
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to connect to host %s: %v", host, err)
+		logrus.Errorf("Failed to connect to host %s: %v", ip, err)
 		return err
 	}
 	defer client.Close()
@@ -28,34 +28,34 @@ func UpdateHostInfo(host string) error {
 	osInfo, err := ssh.RunCommand(client, "grep '^ID=' /etc/os-release | cut -d= -f2")
 	if err != nil {
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to get OS info on host %s: %v", host, err)
+		logrus.Errorf("Failed to get OS info on host %s: %v", ip, err)
 		return err
 	}
 	osVersion, err := ssh.RunCommand(client, "grep 'VERSION_ID=' /etc/os-release | cut -d= -f2")
 	if err != nil {
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to get OS version on host %s: %v", host, err)
+		logrus.Errorf("Failed to get OS version on host %s: %v", ip, err)
 		return err
 	}
 	hostname, err := ssh.RunCommand(client, "hostname")
 	if err != nil {
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to get hostname on host %s: %v", host, err)
+		logrus.Errorf("Failed to get hostname on host %s: %v", ip, err)
 		return err
 	}
 
-	username := ssh.GetUsernameForHost(host)
+	username := ssh.GetUsernameForHost(ip)
 
 	hostInfo := config.HostInfo{
 		OS:            strings.TrimSpace(string(osInfo)),
 		OSVersion:     strings.TrimSpace(string(osVersion)),
-		IP:            host,
+		IP:            ip,
 		Hostname:      strings.TrimSpace(string(hostname)),
 		LastConnected: time.Now(),
 		Username:      username,
 	}
 
-	config.Conf.Hosts[host] = hostInfo
+	config.Conf.Hosts[ip] = hostInfo
 	config.WriteConfig()
 
 	fmt.Printf("Done ✓\n")
@@ -65,21 +65,21 @@ func UpdateHostInfo(host string) error {
 // UpdateAllHosts updates the information of all hosts.
 func UpdateAllHosts() error {
 	fmt.Println("Updating all hosts")
-	for host := range config.Conf.Hosts {
-		if err := UpdateHostInfo(host); err != nil {
-			logrus.Errorf("Failed to update host %s: %v", host, err)
+	for ip := range config.Conf.Hosts {
+		if err := UpdateHostInfo(ip); err != nil {
+			logrus.Errorf("Failed to update host %s: %v", ip, err)
 		}
 	}
 	return nil
 }
 
 // ListInstalledPackages lists the installed packages on a single host.
-func ListInstalledPackages(host string) error {
-	fmt.Printf("Listing installed packages for host %s...", host)
-	client, err := ssh.ConnectSSHClientOnly(host)
+func ListInstalledPackages(ip string) error {
+	fmt.Printf("Listing installed packages for host %s... ", ip)
+	client, err := ssh.ConnectSSHClientOnly(ip)
 	if err != nil {
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to connect to host %s: %v", host, err)
+		logrus.Errorf("Failed to connect to host %s: %v", ip, err)
 		return err
 	}
 	defer client.Close()
@@ -87,7 +87,7 @@ func ListInstalledPackages(host string) error {
 	osType, err := ssh.RunCommand(client, "uname -s")
 	if err != nil {
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to run uname -s on host %s: %v", host, err)
+		logrus.Errorf("Failed to run uname -s on host %s: %v", ip, err)
 		return err
 	}
 
@@ -96,7 +96,7 @@ func ListInstalledPackages(host string) error {
 		distro, err := ssh.RunCommand(client, "grep '^ID=' /etc/os-release | cut -d= -f2")
 		if err != nil {
 			fmt.Printf("Failed\n")
-			logrus.Errorf("Failed to detect Linux distribution on host %s: %v", host, err)
+			logrus.Errorf("Failed to detect Linux distribution on host %s: %v", ip, err)
 			return err
 		}
 		distroStr := strings.TrimSpace(string(distro))
@@ -104,43 +104,43 @@ func ListInstalledPackages(host string) error {
 			pkgList, err = ssh.RunCommand(client, `dpkg-query -W -f='${binary:Package}\t${Version}\t${source:Package}\n'`)
 			if err != nil {
 				fmt.Printf("Failed\n")
-				logrus.Errorf("Failed to list packages on host %s: %v", host, err)
+				logrus.Errorf("Failed to list packages on host %s: %v", ip, err)
 				return err
 			}
-		} else if distroStr == "centos" || distroStr == "fedora" || distroStr == "rhel" {
+		} else if distroStr == "centos" || distroStr == "fedora" || distroStr == "rhel" || distroStr == "ol" {
 			pkgList, err = ssh.RunCommand(client, `rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\t%{VENDOR}\n'`)
 			if err != nil {
 				fmt.Printf("Failed\n")
-				logrus.Errorf("Failed to list packages on host %s: %v", host, err)
+				logrus.Errorf("Failed to list packages on host %s: %v", ip, err)
 				return err
 			}
 		} else {
 			err := fmt.Errorf("unsupported Linux distribution: %s", distroStr)
 			fmt.Printf("Failed\n")
-			logrus.Errorf("Unsupported Linux distribution on host %s: %v", host, err)
+			logrus.Errorf("Unsupported Linux distribution on host %s: %v", ip, err)
 			return err
 		}
 	} else {
 		err := fmt.Errorf("unsupported OS type: %s", osType)
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Unsupported OS type on host %s: %v", host, err)
+		logrus.Errorf("Unsupported OS type on host %s: %v", ip, err)
 		return err
 	}
 
 	hostname, err := ssh.RunCommand(client, "hostname")
 	if err != nil {
 		fmt.Printf("Failed\n")
-		logrus.Errorf("Failed to get hostname on host %s: %v", host, err)
+		logrus.Errorf("Failed to get hostname on host %s: %v", ip, err)
 		return err
 	}
 
 	pkgs := parsePackages(strings.TrimSpace(string(pkgList)))
 	pkgs = filterPackages(pkgs, config.Conf.ExcludedPkgs)
-	savePackages(host, strings.TrimSpace(string(hostname)), pkgs)
+	savePackages(strings.TrimSpace(string(hostname)), ip, pkgs)
 
-	hostInfo := config.Conf.Hosts[host]
+	hostInfo := config.Conf.Hosts[ip]
 	hostInfo.LastPkgUpdate = time.Now()
-	config.Conf.Hosts[host] = hostInfo
+	config.Conf.Hosts[ip] = hostInfo
 	config.WriteConfig()
 
 	fmt.Printf("Done ✓\n")
@@ -150,14 +150,14 @@ func ListInstalledPackages(host string) error {
 // ListPackagesAllHosts lists the installed packages on all hosts.
 func ListPackagesAllHosts(update bool) error {
 	fmt.Println("Listing installed packages for all hosts")
-	for host := range config.Conf.Hosts {
+	for ip := range config.Conf.Hosts {
 		if update {
-			if err := UpdateHostInfo(host); err != nil {
-				logrus.Errorf("Failed to update host %s: %v", host, err)
+			if err := UpdateHostInfo(ip); err != nil {
+				logrus.Errorf("Failed to update host %s: %v", ip, err)
 			}
 		}
-		if err := ListInstalledPackages(host); err != nil {
-			logrus.Errorf("Failed to list packages for host %s: %v", host, err)
+		if err := ListInstalledPackages(ip); err != nil {
+			logrus.Errorf("Failed to list packages for host %s: %v", ip, err)
 		}
 	}
 	return nil
@@ -193,12 +193,13 @@ func parsePackages(pkgList string) []config.PackageInfo {
 	return packages
 }
 
-func savePackages(host, hostname string, packages []config.PackageInfo) {
-	fileName := fmt.Sprintf("%s__%s.json", hostname, host)
+func savePackages(hostname, ip string, packages []config.PackageInfo) {
+	fmt.Println("Saving package list for host", hostname, ip)
+	fileName := fmt.Sprintf("%s__%s.json", hostname, ip)
 	fileData, _ := json.MarshalIndent(packages, "", "  ")
 	err := os.WriteFile(fileName, fileData, 0644)
 	if err != nil {
-		logrus.Errorf("Failed to save package list for host %s: %v", host, err)
+		logrus.Errorf("Failed to save package list for host %s: %v", hostname, err)
 	}
 }
 

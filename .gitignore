@@ -24,4 +24,5 @@ go.work.sum
 *.log
 softwareinventory
 *.json
+*.txt
 swinv

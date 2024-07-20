@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"os"
 
 	"swinv/config"
@@ -142,6 +143,12 @@ func (hook *ConsoleHook) Fire(entry *logrus.Entry) error {
 }
 
 func importHosts(file string, update bool) error {
+	configFileExists := true
+	if _, err := os.Stat(config.ConfigFile); os.IsNotExist(err) {
+		configFileExists = false
+		config.CreateDefaultConfig()
+	}
+
 	f, err := os.Open(file)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %v", err)
@@ -151,10 +158,14 @@ func importHosts(file string, update bool) error {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		host := scanner.Text()
+		var hostInfo config.HostInfo
+		if isValidIP(host) {
+			hostInfo.IP = host
+		} else {
+			hostInfo.Hostname = host
+		}
 		if _, exists := config.Conf.Hosts[host]; !exists {
-			config.Conf.Hosts[host] = config.HostInfo{
-				IP: host,
-			}
+			config.Conf.Hosts[host] = hostInfo
 			if update {
 				if err := pkg.UpdateHostInfo(host); err != nil {
 					logrus.Errorf("Failed to update host %s: %v", host, err)
@@ -168,5 +179,13 @@ func importHosts(file string, update bool) error {
 	}
 
 	config.WriteConfig()
+	if !configFileExists {
+		logrus.Infof("Configuration file %s created. Please use the 'import' command to add hosts.", config.ConfigFile)
+	}
 	return nil
+}
+
+func isValidIP(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil
 }

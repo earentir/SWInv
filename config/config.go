@@ -41,7 +41,11 @@ var Conf Config
 // ReadConfig reads the configuration from the file.
 func ReadConfig() {
 	file, err := os.ReadFile(ConfigFile)
-	if err != nil {
+	if os.IsNotExist(err) {
+		logrus.Warnf("Config file %s does not exist. Creating a default config file.", ConfigFile)
+		CreateDefaultConfig()
+		return
+	} else if err != nil {
 		logrus.Fatalf("Failed to read config file: %v", err)
 	}
 	err = json.Unmarshal(file, &Conf)
@@ -60,4 +64,14 @@ func WriteConfig() {
 	if err := os.WriteFile(ConfigFile, file, 0644); err != nil {
 		logrus.Errorf("Failed to write config file: %v", err)
 	}
+}
+
+// CreateDefaultConfig creates a default configuration file.
+func CreateDefaultConfig() {
+	Conf = Config{
+		Hosts:        make(map[string]HostInfo),
+		ExcludedPkgs: []string{},
+	}
+	WriteConfig()
+	logrus.Infof("Default config file %s created. Please use the 'import' command to add hosts.", ConfigFile)
 }
