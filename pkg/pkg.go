@@ -1,4 +1,3 @@
-// Package pkg provides functions for updating host information and listing installed packages.
 package pkg
 
 import (

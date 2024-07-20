@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+
 	"swinv/config"
 	"swinv/pkg"
 	"swinv/ssh"
@@ -11,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var appVersion = "0.0.3"
+var appVersion = "0.0.5"
 
 func main() {
 	setupLogging()
@@ -75,6 +77,17 @@ func main() {
 		}
 	})
 
+	app.Command("import", "Import hosts from a file", func(cmd *cli.Cmd) {
+		file := cmd.StringArg("FILE", "", "File containing hostnames or IPs")
+		update := cmd.BoolOpt("update u", false, "Update host information after importing")
+
+		cmd.Action = func() {
+			if err := importHosts(*file, *update); err != nil {
+				logrus.Fatal(err)
+			}
+		}
+	})
+
 	err := app.Run(os.Args)
 	if err != nil {
 		logrus.Fatal(err)
@@ -82,7 +95,7 @@ func main() {
 }
 
 func setupLogging() {
-	logFile, err := os.OpenFile("softwareinventory.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile, err := os.OpenFile("swinv.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		logrus.Fatalf("Failed to open log file: %v", err)
 	}
@@ -125,5 +138,35 @@ func (hook *ConsoleHook) Fire(entry *logrus.Entry) error {
 			fmt.Fprint(hook.writer, line)
 		}
 	}
+	return nil
+}
+
+func importHosts(file string, update bool) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %v", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		host := scanner.Text()
+		if _, exists := config.Conf.Hosts[host]; !exists {
+			config.Conf.Hosts[host] = config.HostInfo{
+				IP: host,
+			}
+			if update {
+				if err := pkg.UpdateHostInfo(host); err != nil {
+					logrus.Errorf("Failed to update host %s: %v", host, err)
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read file: %v", err)
+	}
+
+	config.WriteConfig()
 	return nil
 }

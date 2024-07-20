@@ -1,4 +1,3 @@
-// Package ssh provides functions for SSH operations.
 package ssh
 
 import (
