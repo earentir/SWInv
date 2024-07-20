@@ -1,4 +1,4 @@
-module softwareinventory
+module swinv
 
 go 1.22.0
 
