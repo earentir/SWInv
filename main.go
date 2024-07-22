@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var appVersion = "0.0.5"
+var appVersion = "1.0.9"
 
 func main() {
 	setupLogging()
@@ -49,7 +49,7 @@ func main() {
 		}
 	})
 
-	app.Command("listpkgs", "List installed packages on the remote host", func(cmd *cli.Cmd) {
+	app.Command("list", "List installed packages on the remote host", func(cmd *cli.Cmd) {
 		host := cmd.StringArg("HOST", "", "Hostname, IP or 'all'")
 		update := cmd.BoolOpt("update u", false, "Update host information before listing packages")
 		cmd.Action = func() {
